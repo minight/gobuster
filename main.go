@@ -96,6 +96,7 @@ type State struct {
 	Terminate      bool
 	StdIn          bool
 	InsecureSSL    bool
+    NoSlash        bool
 }
 
 type RedirectHandler struct {
@@ -264,6 +265,7 @@ func ParseCmdLine() *State {
 	flag.BoolVar(&s.Quiet, "q", false, "Don't print the banner and other noise")
 	flag.BoolVar(&s.Expanded, "e", false, "Expanded mode, print full URLs")
 	flag.BoolVar(&s.NoStatus, "n", false, "Don't print status codes")
+    flag.BoolVar(&s.NoSlash, "ns", false, "Don't add the slash in your query. For param brute forcing")
 	flag.BoolVar(&s.IncludeLength, "l", false, "Include the length of the body in the output (dir mode only)")
 	flag.BoolVar(&s.UseSlash, "f", false, "Append a forward-slash to each directory request (dir mode only)")
 	flag.BoolVar(&s.WildcardForced, "fw", false, "Force continued operation when wildcard found")
@@ -318,7 +320,7 @@ func ParseCmdLine() *State {
 	}
 
 	if s.Mode == "dir" {
-		if strings.HasSuffix(s.Url, "/") == false {
+		if strings.HasSuffix(s.Url, "/") == false && !s.NoSlash {
 			s.Url = s.Url + "/"
 		}
 
@@ -812,6 +814,10 @@ func ShowConfig(state *State) {
 			if state.Verbose {
 				fmt.Printf("[+] Verbose      : true\n")
 			}
+
+            if state.NoSlash {
+                fmt.Printf("[+] No Slash     : true\n")
+            }
 		}
 
 		Ruler(state)
