@@ -60,6 +60,11 @@ type StringSet struct {
 	set map[string]bool
 }
 
+// Shim type for a header tuple
+type StringDict struct {
+    set map[string]string
+}
+
 // Contains State that are read in from the command
 // line when the program is invoked.
 type State struct {
@@ -97,6 +102,8 @@ type State struct {
 	StdIn          bool
 	InsecureSSL    bool
     NoSlash        bool
+    Headers        StringDict
+    HeaderFile     string
 }
 
 type RedirectHandler struct {
@@ -189,6 +196,10 @@ func MakeRequest(s *State, fullUrl, cookie string) (*int, *int64) {
 		req.SetBasicAuth(s.Username, s.Password)
 	}
 
+    for key, value := range s.Headers.set {
+        req.Header.Set(key, value)
+    }
+
 	resp, err := s.Client.Do(req)
 
 	if err != nil {
@@ -241,6 +252,7 @@ func ParseCmdLine() *State {
 	s := State{
 		StatusCodes: IntSet{set: map[int]bool{}},
 		WildcardIps: StringSet{set: map[string]bool{}},
+        Headers: StringDict{set: map[string]string{}},
 		IsWildcard:  false,
 		StdIn:       false,
 	}
@@ -258,6 +270,7 @@ func ParseCmdLine() *State {
 	flag.StringVar(&extensions, "x", "", "File extension(s) to search for (dir mode only)")
 	flag.StringVar(&s.UserAgent, "a", "", "Set the User-Agent string (dir mode only)")
 	flag.StringVar(&proxy, "p", "", "Proxy to use for requests [http(s)://host:port] (dir mode only)")
+	flag.StringVar(&s.HeaderFile, "hf", "", "File of HTTP Headers to use (colon separated, like a normal HTTP Request) (dir mode only)")
 	flag.BoolVar(&s.Verbose, "v", false, "Verbose output (errors)")
 	flag.BoolVar(&s.ShowIPs, "i", false, "Show IP addresses (dns mode only)")
 	flag.BoolVar(&s.ShowCNAME, "cn", false, "Show CNAME records (dns mode only, cannot be used with '-i' option)")
@@ -354,6 +367,28 @@ func ParseCmdLine() *State {
 				}
 			}
 		}
+
+        if s.HeaderFile != "" {
+            if _, err := os.Stat(s.HeaderFile); os.IsNotExist(err) {
+                fmt.Println("[!] Header File (-hf): File does not exist:", s.HeaderFile)
+                valid = false
+            }
+
+            // Pull content from the wordlist
+            HeaderList, err := os.Open(s.HeaderFile)
+            if err != nil {
+                panic("Failed to open wordlist")
+            }
+            defer HeaderList.Close()
+
+            // Lazy reading of the wordlist line by line
+            scanner := bufio.NewScanner(HeaderList)
+            for scanner.Scan() {
+                word := scanner.Text()
+                keypair := strings.SplitN(word, ": ", 2)
+                s.Headers.set[keypair[0]] = keypair[1]
+            }
+        }
 
 		// status codes are comma separated
 		if codes != "" {
@@ -817,6 +852,10 @@ func ShowConfig(state *State) {
 
             if state.NoSlash {
                 fmt.Printf("[+] No Slash     : true\n")
+            }
+
+            if state.HeaderFile != "" {
+                fmt.Printf("[+] Header File  : %s\n", state.HeaderFile)
             }
 		}
 
